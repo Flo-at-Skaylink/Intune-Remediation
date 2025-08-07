@@ -138,15 +138,6 @@ if ($isPasswordState -in (2, 3, 6, 7, 66) -and $biosPasswords.count -gt 0) {
         # Try to enable secureboot with the current password
         try {
             $setBios.SetBiosSetting("SecureBoot,Enable,$biosPassword,ascii,gr")
-            Write-Output "Secureboot enabled with bios password"
-            Write-Log -message "Secureboot enabled with bios password"
-
-            try {
-                $opcodeInterface.WmiOpcodeInterface("WmiOpcodePasswordAdmin:$biosPassword")
-            }
-            catch {
-            }
-
             $commitBios.SaveBiosSettings("$biosPassword,ascii,gr")
             $passwordWorked = $true
             Write-Output "Bios settings committed with password"
