@@ -39,9 +39,9 @@ Write-Output "Start detecting Windows Update and Upgrade errors"
 Write-Log     "Start detecting Windows Update and Upgrade errors"
 
 # Registry Path checks
-$regChecksPath = @(
-    @{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\TargetVersionUpgradeExperienceIndicators" }
-)
+#$regChecksPath = @(
+#    @{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\TargetVersionUpgradeExperienceIndicators" }
+#)
 
 # Registry Key-Value checks
 $regChecksKeyValue = @(
@@ -68,7 +68,7 @@ $regChecksKeys = @(
 
 # Event filter
 $filter = @{
-    ProviderName = 'Microsoft-Windows-WindowsUpdateClient'
+    LogName = 'Microsoft-Windows-WindowsUpdateClient/Operational'
     Level        = 1, 2
     StartTime    = (Get-Date).AddDays(-7)
 }
@@ -83,14 +83,15 @@ $RemediationNeeded = $false
 
 # Detection logic
 try {
-    # Check TargetVersionUpgradeExperienceIndicators
-    foreach ($regCheck in $regChecksPath) {
-        if (Test-Path $regCheck.Path) {
-            Write-Output "Issue detected: Registry key 'TargetVersionUpgradeExperienceIndicators' exists."
-            Write-Log     "Issue detected: Registry key 'TargetVersionUpgradeExperienceIndicators' exists."
-            $RemediationNeeded = $true
-        }
-    }
+    # Check TargetVersionUpgradeExperienceIndicators, generates a loop if present
+    #foreach ($regCheck in $regChecksPath) {
+    #    if (Test-Path $regCheck.Path) {
+    #        Write-Output "Issue detected: Registry key 'TargetVersionUpgradeExperienceIndicators' exists."
+    #        Write-Log     "Issue detected: Registry key 'TargetVersionUpgradeExperienceIndicators' exists."
+    #        $RemediationNeeded = $true
+    #    }
+    #}
+    
     # Check regkey values
     foreach ($setting in $regChecksKeyValue) {
         if (Test-Path $setting.Path) {
@@ -143,10 +144,12 @@ try {
     # Final decision
     if ($RemediationNeeded) {
         Write-Output "Issue detected: Remediation required."
+        Write-Log     "Issue detected: Remediation required."
         exit 1
     }
     else {
         Write-Output "No issue: Remediation not required."
+        Write-Log     "No issue: Remediation not required."
         exit 0
     }
 }

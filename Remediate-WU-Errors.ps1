@@ -69,7 +69,8 @@ function Wait-ServiceStopped {
     }
     catch { 
         Write-Output "Warning: Service $($Service.Name) did not stop within $Seconds seconds."
-        Write-Log "Wait stopped warning for $($Service.Name): $_" }
+        Write-Log "Wait stopped warning for $($Service.Name): $_" 
+    }
 }
 
 # Helper: Wait for service status change running
@@ -85,7 +86,8 @@ function Wait-ServiceRunning {
     }
     catch { 
         Write-Output "Warning: Service $($Service.Name) did not start within $Seconds seconds."
-        Write-Log "Wait running warning for $($Service.Name): $_" }
+        Write-Log "Wait running warning for $($Service.Name): $_" 
+    }
 }
 
 # Main remediation logic
@@ -104,12 +106,12 @@ try {
     }
 
 
-    # B) wuauclt.exe beenden
+    # B) Kill wuauclt.exe if present
     Write-Output "Killing wuauclt.exe if present"
     Write-Log "Killing wuauclt.exe if present"
     Get-Process -Name 'wuauclt' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
-    # C) Dienste stoppen (BITS, WUAUSERV, APPIDSVC, CRYPTSVC)
+    # C) Stop services (BITS, WUAUSERV, APPIDSVC, CRYPTSVC)
     foreach ($s in 'bits', 'wuauserv', 'appidsvc', 'cryptsvc') {
         $svc = Get-Service -Name $s -ErrorAction SilentlyContinue
         if ($svc) {
@@ -126,7 +128,7 @@ try {
         }
     }
 
-    # D) qmgr*.dat löschen (beide bekannten Speicherorte)
+    # D) Delete qmgr*.dat files (both known locations)
     Write-Output "Deleting qmgr*.dat files"
     Write-Log "Deleting qmgr*.dat files"
 
@@ -143,7 +145,7 @@ try {
         }
     }
 
-    # E) Ordner/Dateien sichern/umbenennen
+    # E) Backup and rename folders/files
     $sd = Join-Path $env:windir 'SoftwareDistribution'
     if (Test-Path $sd) {
         $sdBak = "$sd.bak"
@@ -188,7 +190,7 @@ try {
         Rename-Item -Path $wulog -NewName (Split-Path $wulogBak -Leaf) -ErrorAction SilentlyContinue
     }
 
-    # F) SDDL der Dienste auf Default setzen (wie WUReset)
+    # F) Reset service security descriptors (SDDL)
     Write-Output "Resetting service security descriptors (SDDL)"
     Write-Log "Resetting service security descriptors (SDDL)"
     $sddl = @{
@@ -203,11 +205,13 @@ try {
             Write-Log "sc.exe sdset $name ..."
             & sc.exe sdset $name "$($sddl[$name])" | Out-Null
         }
-        catch { Write-Output "SDDL reset warning for $name $_"
-                Write-Log "SDDL reset warning for $name $_" }   
+        catch {
+            Write-Output "SDDL reset warning for $name $_"
+            Write-Log "SDDL reset warning for $name $_" 
+        }   
     }
 
-    # G) Re-Registrierung der DLLs (nur wenn vorhanden)
+    # G) DLLs re-registration (BITS, WU)
     Write-Output "Re-registering BITS/Windows Update related DLLs (if present)"
     Write-Log "Re-registering BITS/Windows Update related DLLs (if present)"
     $dlls = @(
@@ -226,8 +230,10 @@ try {
                 Write-Output "regsvr32 succeeded for $d"
                 Write-Log "regsvr32 succeeded for $d"
             }
-            catch { Write-Output "regsvr32 failed for $d $_"
-                    Write-Log "regsvr32 failed for $d $_" }
+            catch {
+                Write-Output "regsvr32 failed for $d $_"
+                Write-Log "regsvr32 failed for $d $_" 
+            }
         }
         else {
             Write-Output "DLL not found (skipped): $d"
@@ -241,17 +247,17 @@ try {
     & netsh winsock reset           | Out-Null
     & netsh winhttp reset proxy     | Out-Null
 
-    # I) Starttypen setzen (wie WUReset)
+    # I) Set service start types
     Write-Output "Setting service start types"
     Write-Log "Setting service start types"
     & sc.exe config wuauserv        start= auto         | Out-Null
     & sc.exe config bits            start= delayed-auto | Out-Null
     & sc.exe config cryptsvc        start= auto         | Out-Null
     & sc.exe config TrustedInstaller start= demand      | Out-Null
-    # DcomLaunch ist i. d. R. bereits Auto/Running; Konfig-Fehler hier sind unkritisch
+    # DcomLaunch is usually already Auto/Running; config errors here are non-critical
     & sc.exe config DcomLaunch      start= auto         | Out-Null
 
-    # J) WSUS und GPO altlasten entfernen
+    # J) WSUS and GPO remnants removal
     # Registry Path checks
     $regChecksPath = @(
         @{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\TargetVersionUpgradeExperienceIndicators" },
@@ -284,7 +290,7 @@ try {
 
     Write-Output "Removing registry keys related to WSUS and GPO remnants, if present"
     Write-Log "Removing registry keys related to WSUS and GPO remnants, if present"
-    
+
     # Remove regkey presence
     foreach ($setting in $regChecksKeys) {
         if (Test-Path $setting.Path) {
@@ -320,7 +326,7 @@ try {
         }
     }
 
-    # K) Dienste starten (wie WUReset)
+    # K) Start Services (BITS, WUAUSERV, APPIDSVC, CRYPTSVC, DcomLaunch)
     Write-Output "Starting Windows Update services"
     Write-Log "Starting Windows Update services"
     foreach ($s in @('bits', 'wuauserv', 'appidsvc', 'cryptsvc', 'DcomLaunch')) {
@@ -330,11 +336,19 @@ try {
                 Start-Service -Name $s -ErrorAction SilentlyContinue
                 Wait-ServiceRunning -Service $svc -Seconds 25
             }
-            catch { Write-Log "Start warning for $s $_" }
+            catch {
+                Write-Log "Start warning for $s $_" 
+            }
         }
     }
 
-    # M) Scan anstoßen (best effort)
+    # M) Start WU Scan + Telemetry Appraiser and clear Event Logs
+
+    # Clear WU Event Log, that the detection script can detect new errors only
+    Write-Output "Clearing Windows Update event log"
+    Write-Log "Clearing Windows Update event log"
+    Clear-EventLog -LogName "Microsoft-Windows-WindowsUpdateClient/Operational" -ErrorAction SilentlyContinue
+
     # Trigger Telemetry appraiser run
     Write-Output "Triggering CompatTelRunner appraiser run"
     Write-Log "Triggering CompatTelRunner appraiser run"
