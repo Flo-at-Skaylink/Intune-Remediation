@@ -64,8 +64,12 @@ function Wait-ServiceStopped {
             [System.ServiceProcess.ServiceControllerStatus]::Stopped,
             (New-TimeSpan -Seconds $Seconds)
         ) | Out-Null
+        Write-Output "Service $($Service.Name) stopped successfully."
+        Write-Log "Service $($Service.Name) stopped successfully."
     }
-    catch { Write-Log "Wait stopped warning for $($Service.Name): $_" }
+    catch { 
+        Write-Output "Warning: Service $($Service.Name) did not stop within $Seconds seconds."
+        Write-Log "Wait stopped warning for $($Service.Name): $_" }
 }
 
 # Helper: Wait for service status change running
@@ -76,25 +80,32 @@ function Wait-ServiceRunning {
             [System.ServiceProcess.ServiceControllerStatus]::Running,
             (New-TimeSpan -Seconds $Seconds)
         ) | Out-Null
+        Write-Output "Service $($Service.Name) running successfully."
+        Write-Log "Service $($Service.Name) running successfully."
     }
-    catch { Write-Log "Wait running warning for $($Service.Name): $_" }
+    catch { 
+        Write-Output "Warning: Service $($Service.Name) did not start within $Seconds seconds."
+        Write-Log "Wait running warning for $($Service.Name): $_" }
 }
 
 # Main remediation logic
 try {
-    Write-Log "=== Start Remediation: WUReset Option 2 + WSUS cleanup ==="
+    Write-Output "=== Start Remediation: WUReset + WSUS cleanup ==="
+    Write-Log "=== Start Remediation: WUReset + WSUS cleanup ==="
 
 
     # A) Remove WSUS setupconfig.ini
     $WSUSConfigPath = 'C:\Users\Default\AppData\Local\Microsoft\Windows\WSUS'
     $ConfigPath = Join-Path $WSUSConfigPath 'setupconfig.ini'
     if (Test-Path $ConfigPath) {
+        Write-Output "Removing setupconfig.ini at $ConfigPath"
         Write-Log "Removing setupconfig.ini at $ConfigPath"
         Remove-Item -Path $ConfigPath -Force -ErrorAction SilentlyContinue
     }
 
 
     # B) wuauclt.exe beenden
+    Write-Output "Killing wuauclt.exe if present"
     Write-Log "Killing wuauclt.exe if present"
     Get-Process -Name 'wuauclt' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
@@ -103,24 +114,30 @@ try {
         $svc = Get-Service -Name $s -ErrorAction SilentlyContinue
         if ($svc) {
             if ($svc.Status -ne 'Stopped') {
+                Write-Output "Stopping service: $s"
                 Write-Log "Stopping service: $s"
                 Stop-Service -Name $s -Force -ErrorAction SilentlyContinue
                 Wait-ServiceStopped -Service $svc -Seconds 25
             }
         }
         else {
+            Write-Output "Service $s not present (OK)"
             Write-Log "Service $s not present (OK)"
         }
     }
 
     # D) qmgr*.dat löschen (beide bekannten Speicherorte)
+    Write-Output "Deleting qmgr*.dat files"
     Write-Log "Deleting qmgr*.dat files"
+
+
     $qmgrPaths = @(
-        Join-Path $env:ALLUSERSPROFILE 'Application Data\Microsoft\Network\Downloader',
-        Join-Path $env:ALLUSERSPROFILE 'Microsoft\Network\Downloader'
+        (Join-Path $env:ALLUSERSPROFILE 'Application Data\Microsoft\Network\Downloader'),
+        (Join-Path $env:ALLUSERSPROFILE 'Microsoft\Network\Downloader')
     ) | Where-Object { Test-Path $_ }
     foreach ($p in $qmgrPaths) {
         Get-ChildItem -Path $p -Filter 'qmgr*.dat' -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Output "Deleting $($_.FullName)"
             Write-Log "Deleting $($_.FullName)"
             Remove-Item -Path $_.FullName -Force -ErrorAction SilentlyContinue
         }
@@ -131,9 +148,11 @@ try {
     if (Test-Path $sd) {
         $sdBak = "$sd.bak"
         if (Test-Path $sdBak) {
+            Write-Output "Removing old $sdBak"
             Write-Log "Removing old $sdBak"
             Remove-Item -Path $sdBak -Recurse -Force -ErrorAction SilentlyContinue
         }
+        Write-Output "Renaming $sd -> $sdBak"
         Write-Log "Renaming $sd -> $sdBak"
         Rename-Item -Path $sd -NewName (Split-Path $sdBak -Leaf) -ErrorAction SilentlyContinue
     }
@@ -142,9 +161,11 @@ try {
     if (Test-Path $cr) {
         $crBak = "$cr.bak"
         if (Test-Path $crBak) {
+            Write-Output "Removing old $crBak"
             Write-Log "Removing old $crBak"
             Remove-Item -Path $crBak -Recurse -Force -ErrorAction SilentlyContinue
         }
+        Write-Output "Renaming $cr -> $crBak"
         Write-Log "Renaming $cr -> $crBak"
         Rename-Item -Path $cr -NewName (Split-Path $crBak -Leaf) -ErrorAction SilentlyContinue
     }
@@ -153,6 +174,7 @@ try {
     if (Test-Path $pending) {
         $pendingBak = "$pending.bak"
         if (Test-Path $pendingBak) { Remove-Item -Path $pendingBak -Force -ErrorAction SilentlyContinue }
+        Write-Output "Renaming $pending -> $pendingBak"
         Write-Log "Renaming $pending -> $pendingBak"
         Rename-Item -Path $pending -NewName (Split-Path $pendingBak -Leaf) -ErrorAction SilentlyContinue
     }
@@ -161,11 +183,13 @@ try {
     if (Test-Path $wulog) {
         $wulogBak = "$wulog.bak"
         if (Test-Path $wulogBak) { Remove-Item -Path $wulogBak -Force -ErrorAction SilentlyContinue }
+        Write-Output "Renaming $wulog -> $wulogBak"
         Write-Log "Renaming $wulog -> $wulogBak"
         Rename-Item -Path $wulog -NewName (Split-Path $wulogBak -Leaf) -ErrorAction SilentlyContinue
     }
 
     # F) SDDL der Dienste auf Default setzen (wie WUReset)
+    Write-Output "Resetting service security descriptors (SDDL)"
     Write-Log "Resetting service security descriptors (SDDL)"
     $sddl = @{
         'wuauserv'         = 'D:(A;CI;CCLCSWRPLORC;;;AU)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;SY)S:(AU;FA;CCDCLCSWRPWPDTLOSDRCWDWO;;;WD)';
@@ -175,13 +199,16 @@ try {
     }
     foreach ($name in $sddl.Keys) {
         try {
+            Write-Output "sc.exe sdset $name ..."
             Write-Log "sc.exe sdset $name ..."
             & sc.exe sdset $name "$($sddl[$name])" | Out-Null
         }
-        catch { Write-Log "SDDL reset warning for $name $_" }
+        catch { Write-Output "SDDL reset warning for $name $_"
+                Write-Log "SDDL reset warning for $name $_" }   
     }
 
     # G) Re-Registrierung der DLLs (nur wenn vorhanden)
+    Write-Output "Re-registering BITS/Windows Update related DLLs (if present)"
     Write-Log "Re-registering BITS/Windows Update related DLLs (if present)"
     $dlls = @(
         'atl.dll', 'urlmon.dll', 'mshtml.dll', 'shdocvw.dll', 'browseui.dll', 'jscript.dll', 'vbscript.dll', 'scrrun.dll',
@@ -196,20 +223,26 @@ try {
         if (Test-Path $path) {
             try {
                 Start-Process -FilePath "$sys32\regsvr32.exe" -ArgumentList "/s `"$path`"" -WindowStyle Hidden -Wait
+                Write-Output "regsvr32 succeeded for $d"
+                Write-Log "regsvr32 succeeded for $d"
             }
-            catch { Write-Log "regsvr32 failed for $d $_" }
+            catch { Write-Output "regsvr32 failed for $d $_"
+                    Write-Log "regsvr32 failed for $d $_" }
         }
         else {
+            Write-Output "DLL not found (skipped): $d"
             Write-Log "DLL not found (skipped): $d"
         }
     }
 
     # H) Winsock/WinHTTP Reset
+    Write-Output "Resetting Winsock and WinHTTP proxy"
     Write-Log "Resetting Winsock and WinHTTP proxy"
     & netsh winsock reset           | Out-Null
     & netsh winhttp reset proxy     | Out-Null
 
     # I) Starttypen setzen (wie WUReset)
+    Write-Output "Setting service start types"
     Write-Log "Setting service start types"
     & sc.exe config wuauserv        start= auto         | Out-Null
     & sc.exe config bits            start= delayed-auto | Out-Null
@@ -278,12 +311,14 @@ try {
     # Delete registry paths
     foreach ($regPath in $regChecksPath) {
         if (Test-Path $regPath.Path) {
+            Write-Output "Issue detected: Removing Registry path: $($regPath.Path)"
             Write-Log "Issue detected: Removing Registry path: $($regPath.Path)"
             Remove-Item -Path $regPath.Path -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 
     # K) Dienste starten (wie WUReset)
+    Write-Output "Starting Windows Update services"
     Write-Log "Starting Windows Update services"
     foreach ($s in @('bits', 'wuauserv', 'appidsvc', 'cryptsvc', 'DcomLaunch')) {
         $svc = Get-Service -Name $s -ErrorAction SilentlyContinue
@@ -298,16 +333,19 @@ try {
 
     # M) Scan anstoßen (best effort)
     # Trigger Telemetry appraiser run
+    Write-Output "Triggering CompatTelRunner appraiser run"
     Write-Log "Triggering CompatTelRunner appraiser run"
     Start-Process -FilePath "C:\Windows\System32\CompatTelRunner.exe" -ArgumentList "-m:appraiser.dll -f:DoScheduledTelemetryRun" -NoNewWindow -Wait
     
     # Trigger WU scan
     $uso = Join-Path $env:SystemRoot 'System32\UsoClient.exe'
     if (Test-Path $uso) {
+        Write-Output "Triggering Windows Update scan via UsoClient StartInteractiveScan"
         Write-Log "Triggering Windows Update scan via UsoClient StartInteractiveScan"
         Start-Process -FilePath $uso -ArgumentList 'StartInteractiveScan' -WindowStyle Hidden
     }
     else {
+        Write-Output "UsoClient not found; triggering WU COM API search (best effort)"
         Write-Log "UsoClient not found; triggering WU COM API search (best effort)"
         try {
             $session = New-Object -ComObject Microsoft.Update.Session
@@ -317,10 +355,12 @@ try {
         catch { Write-Log "COM scan trigger failed: $_" }
     }
 
+    Write-Output "=== Remediation completed successfully ==="
     Write-Log "=== Remediation completed successfully ==="
     exit 0
 }
 catch {
+    Write-Output "Remediation failed: $_"
     Write-Log "Remediation failed: $_"
     exit 1
 }
