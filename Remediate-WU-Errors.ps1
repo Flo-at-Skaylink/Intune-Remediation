@@ -282,6 +282,9 @@ try {
         @{ Name = "UpdateServiceUrlAlternate"; Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" }
     )
 
+    Write-Output "Removing registry keys related to WSUS and GPO remnants, if present"
+    Write-Log "Removing registry keys related to WSUS and GPO remnants, if present"
+    
     # Remove regkey presence
     foreach ($setting in $regChecksKeys) {
         if (Test-Path $setting.Path) {
