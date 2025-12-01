@@ -32,7 +32,7 @@ Function Write-Log {
 
 # Thresholds
 $MinGBFree = 30
-$MinReclaimMB = 500
+$MinReclaimMB = 0
 
 Write-Output "=== Disk Space Detection Started ==="
 Write-Log     "Detection started"
@@ -54,9 +54,11 @@ if ($freeBytes -ge ($MinGBFree * 1GB)) {
     Write-Log    "Compliant: $freeGB GB free"
     exit 0
 }
-
-Write-Output "Low disk space detected (< $MinGBFree GB). Checking Downloads and Recycle Bin..."
-Write-Log    "Low disk space detected. Checking reclaimable space."
+elseif ($freeBytes -lt ($MinGBFree * 1GB)) {
+    Write-Output "Low disk space detected (< $MinGBFree GB). Checking Downloads and Recycle Bin..."
+    Write-Log    "Low disk space detected. Checking reclaimable space."
+    exit 1
+}
 
 # Calculate Downloads size
 $downloadsPath = Join-Path $env:USERPROFILE "Downloads"
