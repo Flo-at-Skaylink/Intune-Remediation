@@ -58,23 +58,23 @@ function Get-FreeSpaceGB {
 }
 
 # --- Registry configuration for CleanMgr SageRun:1 ---
-# Include all relevant caches EXCEPT 'Recycle Bin' and 'Downloaded Program Files'
+# Include all relevant caches EXCEPT 'Recycle Bin' and 'Downloades'
 # (to leave deletion of user content entirely to the user).
 $CleanupSelections = @(
     'Active Setup Temp Folders', 'BranchCache', 'Content Indexer Cleaner', 'Device Driver Packages',
-    # 'Downloaded Program Files',   # EXCLUDED intentionally per requirements
-    'GameNewsFiles', 'GameStatisticsFiles', 'GameUpdateFiles',
+    'Downloaded Program Files', 'Delivery Optimization Files', 'DirectX Shader Cache',
+    'DNS Cache', 'Downloaded Maps Files', 'Event Trace Sessions', 'Font Cache', 
+    'GameNewsFiles', 'GameStatisticsFiles', 'GameUpdateFiles', 'Hibernation File Cleaner',
     'Internet Cache Files', 'Memory Dump Files', 'Offline Pages Files', 'Old ChkDsk Files',
-    'Previous Installations',
-    # 'Recycle Bin',                # EXCLUDED intentionally per requirements
-    'Service Pack Cleanup', 'Setup Log Files',
+    'Previous Windows Installations', 'Printer Driver Packages', 'Resource Files', 'Setup Files',
+    'Previous Installations', 'Service Pack Cleanup', 'Setup Log Files',
     'System error memory dump files', 'System error minidump files',
     'Temporary Files', 'Temporary Setup Files', 'Temporary Sync Files',
     'Thumbnail Cache', 'Update Cleanup', 'Upgrade Discarded Files', 'User file versions',
     'Windows Defender',
     'Windows Error Reporting Archive Files', 'Windows Error Reporting Queue Files',
     'Windows Error Reporting System Archive Files', 'Windows Error Reporting System Queue Files',
-    'Windows ESD installation files', 'Windows Upgrade Log Files'
+    'Windows ESD installation files'
 )
 
 function Set-SageRunRegistry {
@@ -191,7 +191,7 @@ if ($null -ne $FreeSpaceGB) {
 
 # --- Apply registry configuration before UI ---
 Set-SageRunRegistry -RunId $SageRunId -Selections $CleanupSelections
-Validate-SageRunRegistry -RunId $SageRunId -Selections $CleanupSelections
+Test-SageRunRegistry -RunId $SageRunId -Selections $CleanupSelections
 
 # --- Build WPF Window ---
 $Window = New-Object Windows.Window

@@ -32,7 +32,7 @@ Function Write-Log {
 
 # Thresholds
 $MinGBFree = 30
-$MinReclaimMB = 0
+$MinReclaimMB = 500
 
 Write-Output "=== Disk Space Detection Started ==="
 Write-Log     "Detection started"
@@ -55,8 +55,10 @@ if ($freeBytes -ge ($MinGBFree * 1GB)) {
     exit 0
 }
 elseif ($freeBytes -lt ($MinGBFree * 1GB)) {
-    Write-Output "Low disk space detected (< $MinGBFree GB). Checking Downloads and Recycle Bin..."
-    Write-Log    "Low disk space detected. Checking reclaimable space."
+    Write-Output "Low disk space detected (< $MinGBFree GB)."
+    Write-Log    "Low disk space detected: $freeGB GB free"
+    Write-Output "Non-compliant. Trigger remediation."
+    Write-Log    "Non-compliant. Trigger remediation."
     exit 1
 }
 
