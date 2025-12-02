@@ -180,9 +180,6 @@ function Show-ToastXml {
     }
 }
 
-# Start
-Start-Transcript -Path $logFile -Append | Out-Null
-
 # Check initial free disk space
 $FreeSpaceGB = Get-FreeSpaceGB
 if ($null -ne $FreeSpaceGB) {
@@ -288,5 +285,3 @@ catch {
     Write-Output "Failed to show toast notification."
     Write-Log    "Failed to show toast notification."
 }
-
-Stop-Transcript | Out-Null
