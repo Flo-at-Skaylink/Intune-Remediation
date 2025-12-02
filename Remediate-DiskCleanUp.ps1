@@ -109,16 +109,34 @@ function Set-Action {
     $Main_Reg_Path = "HKCU:\SOFTWARE\Classes\$Action_Name"
     $Command_Path = "$Main_Reg_Path\shell\open\command"
     $Script_Export_Path = "C:\Windows\Temp"
-    if (-not (Test-Path $Script_Export_Path)) { New-Item -ItemType Directory -Path $Script_Export_Path -Force | Out-Null }
 
-    $CmdFile = Join-Path $Script_Export_Path "$Action_Name.cmd"
-    $CmdBody | Out-File $CmdFile -Force -Encoding ASCII
+    try {
+        if (-not (Test-Path $Script_Export_Path)) {
+            New-Item -ItemType Directory -Path $Script_Export_Path -Force | Out-Null
+            Write-Output "Created folder: $Script_Export_Path"
+            Write-Log    "Created folder: $Script_Export_Path"
+        }
 
-    New-Item $Command_Path -Force | Out-Null
-    New-ItemProperty -Path $Main_Reg_Path -Name "URL Protocol" -Value "" -PropertyType String -Force | Out-Null
-    Set-ItemProperty -Path $Main_Reg_Path -Name "(Default)" -Value "URL:$Action_Name Protocol" -Force | Out-Null
-    Set-ItemProperty -Path $Command_Path -Name "(Default)" -Value $CmdFile -Force | Out-Null
+        $CmdFile = Join-Path $Script_Export_Path "$Action_Name.cmd"
+        $CmdBody | Out-File $CmdFile -Force -Encoding ASCII
+        Write-Output "Created CMD file: $CmdFile"
+        Write-Log    "Created CMD file: $CmdFile"
+
+        New-Item $Command_Path -Force | Out-Null
+        New-ItemProperty -Path $Main_Reg_Path -Name "URL Protocol" -Value "" -PropertyType String -Force | Out-Null
+        Set-ItemProperty -Path $Main_Reg_Path -Name "(Default)" -Value "URL:$Action_Name Protocol" -Force | Out-Null
+        Set-ItemProperty -Path $Command_Path -Name "(Default)" -Value $CmdFile -Force | Out-Null
+
+        Write-Output "Action registered: $Action_Name"
+        Write-Log    "Action registered: $Action_Name"
+    }
+    catch {
+        Write-Output "ERROR registering action: $Action_Name - $_"
+        Write-Log    "ERROR registering action: $Action_Name - $_"
+    }
 }
+
+
 
 function Show-ToastXml {
     param([string]$XmlString, [string]$AppID)
@@ -128,8 +146,15 @@ function Show-ToastXml {
         $ToastXml = New-Object -TypeName Windows.Data.Xml.Dom.XmlDocument
         $ToastXml.LoadXml($XmlString)
         [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($AppID).Show($ToastXml)
+
+        Write-Output "Toast notification displayed successfully."
+        Write-Log    "Toast notification displayed successfully."
+
     }
-    catch {}
+    catch {
+        Write-Output "ERROR displaying toast notification: $_"
+        Write-Log    "ERROR displaying toast notification: $_"
+    }
 }
 
 # Start
@@ -164,7 +189,7 @@ start explorer.exe shell:RecycleBinFolder
 
 # Clean up storage using CleanMgr
 $CleanCmd = @"
-Start-Process -FilePath CleanMgr.exe -ArgumentList '/sagerun:1' -NoNewWindow -Wait
+start CleanMgr.exe -ArgumentList '/sagerun:1' -NoNewWindow -Wait
 "@
 
 # Set actions
@@ -185,7 +210,7 @@ $ActionsXml = @"
   <actions>
     <action activationType="protocol" arguments="$Action_OpenDownloads" content="Open Downloads" />
     <action activationType="protocol" arguments="$Action_OpenRecycle"   content="Open Recycle Bin" />
-    <action activationType="protocol" arguments="$Action_Clear"         content="Clean up now" />
+    <action activationType="protocol" arguments="$Action_Clear"         content="Clean Disk now" />
   </actions>
 "@
 
