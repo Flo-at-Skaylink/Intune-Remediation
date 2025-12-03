@@ -1,4 +1,3 @@
-
 <#
 .SYNOPSIS
     Detect low disk space on the C: drive.
