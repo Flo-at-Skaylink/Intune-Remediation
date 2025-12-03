@@ -1,5 +1,4 @@
 <#
-
 .SYNOPSIS
     Detect Windows Update errors on Windows devices.
 
@@ -68,9 +67,9 @@ $regChecksKeys = @(
 
 # Event filter
 $filter = @{
-    LogName = 'Microsoft-Windows-WindowsUpdateClient/Operational'
-    Level        = 1, 2
-    StartTime    = (Get-Date).AddDays(-7)
+    LogName   = 'Microsoft-Windows-WindowsUpdateClient/Operational'
+    Level     = 1, 2
+    StartTime = (Get-Date).AddDays(-7)
 }
 
 # WSUS setupconfig paths

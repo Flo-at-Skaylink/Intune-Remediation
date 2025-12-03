@@ -1,4 +1,3 @@
-
 <#
 .SYNOPSIS
     This script remediates Windows Update errors on Windows devices.
@@ -347,7 +346,7 @@ try {
     # Clear WU Event Log, that the detection script can detect new errors only
     Write-Output "Clearing Windows Update event log"
     Write-Log "Clearing Windows Update event log"
-    Clear-EventLog -LogName "Microsoft-Windows-WindowsUpdateClient/Operational" -ErrorAction SilentlyContinue
+    Start-Process -FilePath "wevtutil.exe" -ArgumentList "cl", "Microsoft-Windows-WindowsUpdateClient/Operational" -NoNewWindow -Wait
 
     # Trigger Telemetry appraiser run
     Write-Output "Triggering CompatTelRunner appraiser run"
